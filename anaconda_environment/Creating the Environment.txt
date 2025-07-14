@@ -1,0 +1,7 @@
+1. Open a Anaconda Prompt
+2. Navigate to the directory where this folder is using "cd <folder name>", excluding the <>.
+3. Once in this folder, run the command:
+	conda env create -f dynoPlus.yml
+4. Once the environment finishes installing, follow the instructions in the pdf of this folder.
+
+5. Once the environment is selected, you can now press the play button in the top right to run code.
