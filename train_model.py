@@ -75,18 +75,18 @@ dynoPlus.evaluate(8511, validation=False)
 # Calculate the total rmse errors of the model
 dynoPlus.calculate_total_rmse_errors()
 
-# Specify the passivity parameters of the model
-passivity_inputs = ['Vd','Vq']
-passivity_epochs = 100
+# # Specify the passivity parameters of the model
+# passivity_inputs = ['Vd','Vq']
+# passivity_epochs = 100
 
-# Initialize the passivity parameters of the model
-dynoPlus.initialize_passivity_parameters(passivity_inputs,passivity_epochs)
+# # Initialize the passivity parameters of the model
+# dynoPlus.initialize_passivity_parameters(passivity_inputs,passivity_epochs)
 
-# Create the initial passivity input to test
-u_initial = dynoPlus.u_normalized[dynoPlus.valid_trials[0]].to(dynoPlus.device)
+# # Create the initial passivity input to test
+# u_initial = dynoPlus.u_normalized[dynoPlus.valid_trials[0]].to(dynoPlus.device)
 
-# Calculat ethe passivity index
-dynoPlus.find_passivity_type(u_initial)
+# # Calculat ethe passivity index
+# dynoPlus.find_passivity_type(u_initial)
 
 # Save the class instance to a file
 with open(os.path.join('models',model_name,model_name+".pkl"), "wb") as file:
