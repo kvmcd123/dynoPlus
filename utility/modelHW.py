@@ -10,6 +10,8 @@ from utility.metrics import fit_index
 import h5py
 import json
 import mat73
+from scipy import signal
+from scipy.signal import hilbert
 
 class modelHW():
     """
@@ -45,6 +47,27 @@ class modelHW():
         # Turn floating-point warnings into errors for easier debugging
         np.seterr(all='raise')                      # Shows more details about overflow error
     
+    def initialize_filter(self):
+        self.bord = 6
+        self.blev = 0.05
+        self.flt_sos_lp = signal.butter (self.bord, self.blev, btype='lowpass', output='sos')
+        self.flt_sos_hp = signal.butter (self.bord, self.blev, btype='highpass', output='sos')
+    
+    def moving_average(self, a, n):
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret / n
+    
+    def my_filter(self,a,hp=False):
+        if hp:
+            raw = np.abs(signal.sosfiltfilt (self.flt_sos_hp, a, padtype=None))
+            avg = self.moving_average(raw, n=30)
+            return signal.sosfiltfilt (self.flt_sos_lp, avg, padtype=None)
+        else:
+            return signal.sosfiltfilt (self.flt_sos_lp, a, padtype=None)
+    
+    
+    
     def create_dataset(self,raw_data_filename, dataset_class,dataset_name, simulation_time, exclude_input_variables=None,exclude_output_variables=None,description=None):
         data_dict = mat73.loadmat(raw_data_filename)
         # Useful Stats
@@ -52,6 +75,7 @@ class modelHW():
         print(len(data_dict['testResults']['inputs'][0][0]))
         numInputs = len(data_dict['testResults']['inputs'][0][0])-len(exclude_input_variables) 
         numOutputs = len(data_dict['testResults']['outputs'][0][0])-len(exclude_output_variables) 
+
 
         # Load Input Variable Names and Create Lists
         inputVariables = []
@@ -67,14 +91,20 @@ class modelHW():
                 outputVariables.append(key)
                 locals()[key] = []
 
+        unbalanced = False
+        if "unbalanced" in data_dict['testResults']:
+            if data_dict['testResults']['unbalanced'][0][0] == 1:
+                unbalanced = True
+                self.initialize_filter()
+
         # Initialize a dummy model to ensure inputs and outputs work
-        
+        print(unbalanced)
         self.add_model_parameters(
             f1_input_dim=numInputs,
             f2_output_dim=numOutputs,
             f1_output_dim=2,
             f2_input_dim=2, 
-            nb=2,
+            nb=3,
             na=2,
             nk=0,
             activation='tanh')
@@ -107,7 +137,44 @@ class modelHW():
                 # Grab the input output data for test case i
                 inputs = data_dict['testResults']['inputs'][i][0]
                 outputs = data_dict['testResults']['outputs'][i][0]
+                time = np.linspace(0,1,len(inputs['Vd']))
+                if unbalanced:
+                    # Check if test case is unbalanced
+                    unbalanced_flag = data_dict['testResults']['unbalanced'][i][0]
+                    if unbalanced_flag == 1 :
+                        Vd_temp = inputs['Vd']
+                        Vq_temp = inputs['Vq']
+                        V0_temp = inputs['V0']
 
+                        Id_temp = outputs['Isd']
+                        Iq_temp = outputs['Isq']
+                        I0_temp = outputs['Is0']
+                        
+                        Vdlo = self.my_filter (Vd_temp, hp=False)
+                        Vdhi = self.my_filter (Vd_temp, hp=True)
+                        Vqlo = self.my_filter (Vq_temp, hp=False)
+                        Vqhi = self.my_filter (Vq_temp, hp=True)
+                        V0lo = self.my_filter (V0_temp, hp=False)
+                        V0hi = self.my_filter (V0_temp, hp=True)
+
+                        Idhi = self.my_filter (Id_temp, hp=True)
+                        Idlo = self.my_filter (Id_temp, hp=False)
+                        Iqlo = self.my_filter (Iq_temp, hp=False)
+                        Iqhi = self.my_filter (Iq_temp, hp=True)
+                        I0lo = self.my_filter (I0_temp, hp=False)
+                        I0hi = self.my_filter (I0_temp, hp=True)
+
+                        wc = 2*np.pi*60
+                        
+                        outputs['Isd'] = Idlo + Idhi * np.sin(2*wc*time)
+                        outputs['Isq'] = Iqlo + Iqhi * np.sin(2*wc*time)
+                        outputs['Is0'] = I0lo + I0hi * np.sin(wc*time)
+
+                        inputs['Vd'] = Vdlo + Vdhi * np.sin(2*wc*time)
+                        inputs['Vq'] = Vqlo + Vqhi * np.sin(2*wc*time)
+                        inputs['V0'] = V0lo + V0hi * np.sin(wc*time)
+
+                    # If test case is unbalanced, filter I and V components and add 
                 # Convert input and output data directly to torch tensors
                 input_data = torch.tensor(
                     [inputs[var] for var in inputVariables], dtype=torch.float
@@ -118,7 +185,8 @@ class modelHW():
                 ).transpose(0, 1).unsqueeze(0)
 
                 # Test the model works with data
-                y_hat,_,_ = self.dynoModel(input_data)
+                #y_hat,_,_ = self.dynoModel(input_data)
+                y_hat,_,_ = self.dynoModel(input_data,self.y0,self.u0)
                 
                 case_group.create_dataset('input', data=input_data)
                 case_group.create_dataset('output', data=output_data)
@@ -130,12 +198,16 @@ class modelHW():
                     locals()[outputVariables[j]].append(output_data[:,:,j])
 
             for key in inputVariables:
+                print(np.mean(locals()[key]))
+                print(np.ptp(locals()[key]) or 1)
                 variable_group = scaling_group.create_group(key)
                 variable_group.create_dataset(f'mean',data = np.mean(locals()[key]))
-                variable_group.create_dataset(f'range',data = np.ptp(locals()[key]) or 1)
+                variable_group.create_dataset(f'range',data = np.ptp(locals()[key]) or 1.0)
 
             for key in outputVariables:
                 variable_group = scaling_group.create_group(key)
+                print(float(np.mean(locals()[key])))
+                print(float(np.ptp(locals()[key])))
                 variable_group.create_dataset(f'mean',data = float(np.mean(locals()[key])))
                 variable_group.create_dataset(f'range',data = float(np.ptp(locals()[key])))
         
@@ -159,6 +231,7 @@ class modelHW():
           f2_nodes       - hidden nodes in stage 2
           f2_output_dim  - outputs from stage 2
           activation     - activation function for both stages
+          model_type     - the type of model structure to be used
         """
         # Build the DynoModel using stored architecture parameters
         self.dynoModel = dynoModel(
@@ -171,7 +244,8 @@ class modelHW():
             self.f2_input_dim, 
             self.f2_nodes, 
             self.f2_output_dim, 
-            self.activation
+            self.activation,
+            self.model_type
             )
     
     #def add_data_parameters(self,dataset_class,dataset_name, model_name,f1_output_dim,na,nb,nk,f2_input_dim,f1_nodes = 20, f2_nodes = 20,activation='tanh', dt=0.01,batch_size=12,device = "cpu"):
@@ -237,7 +311,7 @@ class modelHW():
 
 
 
-    def add_model_parameters(self,f1_output_dim,f2_input_dim, nb,na,nk,f1_nodes=20,f2_nodes=20,f1_input_dim=None,f2_output_dim=None,activation='tanh'):
+    def add_model_parameters(self,f1_output_dim,f2_input_dim, nb,na,nk,f1_nodes=20,f2_nodes=20,f1_input_dim=None,f2_output_dim=None,activation='tanh',model_type = "Standard"):
         
         if f1_input_dim:
             self.f1_input_dim=f1_input_dim
@@ -259,8 +333,18 @@ class modelHW():
         self.nk = nk
         self.f1_nodes = f1_nodes
         self.f2_nodes = f2_nodes
-
+        
+        if hasattr(self, 'batch_size'):
+            self.y0 = torch.zeros((self.batch_size, self.na), dtype=torch.float)
+            self.u0 = torch.zeros((self.batch_size, self.nb), dtype=torch.float)
+        else:
+            self.y0 = torch.zeros((1, self.na), dtype=torch.float)
+            self.u0 = torch.zeros((1, self.nb), dtype=torch.float)
+        
         self.activation = activation
+        
+        self.model_type = model_type
+        
         # Instantiate the DynoModel with the configured parameters
         self.initialize_dynoModel()
 
@@ -278,7 +362,7 @@ class modelHW():
         # Instantiate with model parameters and optimizer-specific settings
         self.optimizer = OptimizerClass(self.dynoModel.parameters(), lr=self.lr, eps=self.eps, weight_decay=self.weight_decay)
 
-    def initialize_training_parameters(self,optimizer="Adam",criterion="MSE",num_epochs=1000,device = "cpu",msg_freq=100,dc_gain_flag=False,lr =0.001,eps=0,weight_decay=0):
+    def initialize_training_parameters(self,optimizer="Adam",criterion="MSE",num_epochs=1000,device = "cpu",msg_freq=100,dc_gain_flag=False,lr =0.001,eps=0,weight_decay=0,sensitivity_flag=False):
         """
         Set up core training hyperparameters, loss function, and optimizer.
 
@@ -321,6 +405,7 @@ class modelHW():
         self.device = device
         self.msg_freq = msg_freq
         self.dc_gain_flag = dc_gain_flag
+        self.sensitivity_flag = sensitivity_flag
         
         # Initialize loss history containers
         self.tLOSS = []     # training loss per epoch
@@ -328,17 +413,6 @@ class modelHW():
         
         # Instantiate optimizer with current settings
         self.setup_optimizer()
-
-    # WORK IN PROGRESS
-    def sensitivity_parameters(self,bases,kid,kiq,kod,koq,weight,delta):
-        self.sensitivity_bases = bases
-        self.kid = kid
-        self.kiq = kiq
-        self.kod = kod
-        self.koq = koq
-        self.sens_weight = weight
-        self.delta = delta
-
 
     def normalize(self, val,offset,scale):
         """
@@ -567,19 +641,24 @@ class modelHW():
                 self.optimizer.zero_grad()
                 
                 # Forward pass: get model outputs and any intermediate signals
-                output, tf_output,tf_input = self.dynoModel(ub)
+                output, tf_output,tf_input = self.dynoModel(ub,self.u0,self.y0)
                 
                 # Compute loss, adding DC‐gain penalty if enabled
-                if self.dc_gain_flag:
-                    loss = self.criterion(output,yb) + self.calculate_dc_loss(tf_output,tf_input)
-                else:
-                    loss = self.criterion(output, yb)
+                loss = self.criterion(output, yb)
                 
+                if self.dc_gain_flag:
+                    loss += self.calculate_dc_loss(tf_output,tf_input)
+                
+                if self.sensitivity_flag:
+                    # loss = loss + sens_loss
+                    loss += self.calculate_sensitivity()
+
                 # Accumulate training loss for this epoch
                 train_loss += loss.item()
                 
                 # Backpropagation and optimizer step
                 loss.backward()
+                
                 self.optimizer.step()
             
             # Record the last batch loss in the training-loss history
@@ -597,13 +676,15 @@ class modelHW():
                     data, target = data.to(self.device), target.to(self.device)  
                     
                     # Calculate the output
-                    output, tf_output,tf_input = self.dynoModel(data)
+                    output, tf_output,tf_input = self.dynoModel(data,self.y0,self.u0)
                     
                     # Calculate the loss
+                    loss = self.criterion(output,target)
                     if self.dc_gain_flag:
-                        loss = self.criterion(output,target) + self.calculate_dc_loss(tf_output,tf_input)
-                    else:
-                        loss = self.criterion(output, target)
+                        loss += self.calculate_dc_loss(tf_output,tf_input)
+                    
+                    if self.sensitivity_flag:
+                        loss += self.calculate_sensitivity()
     
                     valid_loss += loss.item()
                 
@@ -624,8 +705,14 @@ class modelHW():
         print("Training complete!\n")
         self.plot_training_loss()
 
-    def evaluate(self,n):
-        y_hat_test,_,_ = self.dynoModel(self.u_normalized[self.valid_trials[n]].to(self.device))
+    def evaluate(self,n,validation=False):
+        if validation == True:
+            y_hat_test,_,_ = self.dynoModel(self.u_normalized[self.valid_trials[n]].to(self.device),self.y0,self.u0)
+            y_valid_1=self.y_tensors[self.valid_trials[n]].detach().numpy()[0, :, :]
+        else:
+            y_hat_test,_,_ = self.dynoModel(self.u_normalized[n].to(self.device),self.y0,self.u0)
+            y_valid_1=self.y_tensors[n].detach().numpy()[0, :, :]
+
         # Convert model output to numpy array
         y_hat_test_1 = y_hat_test.detach().cpu().numpy()[0, :, :]
 
@@ -634,10 +721,7 @@ class modelHW():
 
         for i, key in enumerate(self.output_variables):
             y_hat_test_2[:,i] = self.denormalize(y_hat_test_2[:,i],float(self.scaling_factors[key]['mean']),float(self.scaling_factors[key]['range']))
-            i+=1
-
-        y_valid_1=self.y_tensors[self.valid_trials[n]].detach().numpy()[0, :, :]
-
+            
         # Extracting measured and estimated values
         measured = {var: y_valid_1[:, i] for i, var in enumerate(self.output_variables)}
         estimated = {var: y_hat_test_2[:, i] for i, var in enumerate(self.output_variables)}
@@ -659,7 +743,15 @@ class modelHW():
         Args:
         filename (str): path and file name to the exported JSON file; typically ends in *_fhf.json*
         """
-        a = self.dynoModel.G1.a_coeff.detach()
+        if self.model_type == "Standard":
+            a = self.dynoModel.G1.a_coeff.detach()
+        elif self.model_type == "2ndOrderX":
+            a_1 = 2.0 * torch.tanh(self.dynoModel.G1.alpha1)
+            a_1_abs = torch.abs(a_1)
+            a_2 = a_1_abs + (2.0 - a_1_abs) * torch.sigmoid(self.dynoModel.G1.alpha2) - 1.0
+            a_coeff = torch.cat((a_1, a_2), dim=-1)
+            a = a_coeff.detach()
+
         b = self.dynoModel.G1.b_coeff.detach()
         data = {}
 
@@ -740,6 +832,7 @@ class modelHW():
         data['msg_freq']            = self.msg_freq
         data['dt']                  = self.dt
         data['dc_gain']             = self.dc_gain_flag
+        data['sensitivity']         = self.sensitivity_flag
 
         
         file_path = os.path.join("models", self.model_name)
@@ -811,19 +904,115 @@ class modelHW():
 
         plt.show()
 
-    def sensitivity_response(self,input,sens_matrix):
-        y1 = self.dynoModel.F1(input)
-        y2 = torch.sum(y1*sens_matrix)
-        y3 = self.dynoModel.model.F2(y2)
+    def add_sensitivity_parameters(self, limit,weight,delta,inputs,outputs,sets):
+        self.sens_limit = limit
+        self.sens_weight = weight
+        self.sens_delta = delta
+        self.sens_inputs =  inputs
+        self.sens_outputs = outputs
+        self.sens_sets = sets
 
-        d_sens = y3[self.kod]
-        q_sens = y3[self.koq]
+        self.sens_idx_set = {}
+        for key in self.sens_sets:
+            self.sens_idx_set[key] = np.where(self.input_variables == key)
+            
+        self.sens_bases = []
+        vals = np.zeros(len(self.input_variables))
+        keys = list(self.sens_sets)
+        indices = np.zeros(len(keys), dtype = int)
+        lens = np.zeros(len(keys), dtype = int)
+
+        for i in range(len(keys)):
+            lens[i] = len(self.sens_sets[keys[i]])
+        
+        self.sens_counter = 0
+
+        self.add_sensitivity_bases(self.sens_bases,vals,keys,indices,lens,0)
+
+        self.sens_kid = np.where(self.input_variables == self.sens_inputs[0])
+        
+        self.sens_kiq = np.where(self.input_variables == self.sens_inputs[1])
+
+        self.sens_kod = np.where(self.output_variables == self.sens_outputs[0])
+        self.sens_koq = np.where(self.output_variables == self.sens_outputs[1])
+
+    def add_sensitivity_bases(self,bases,step_vals,keys,indices,lens,level):
+        """Recursive function to add a set of operating points to the sensitivity evaluation set. Uses a depth-first approach. When the last channel number is processed, the recursion will back up to a previous channel number that was not fully processed yet. *Internal*
+
+        Args:
+            bases (list(float)[]): array of *step_vals* for operating points in the sensitivity evaluation set 
+            step_vals (list(float)): input channel values for a model steady-state operating point 
+            keys (list(str)): list of channel names from the sens_sets, each of these corresponds to a *level* of recursion
+            indices (list(int)): keeps track of the channel number to resume processing whenever *level* reachs the last *key* 
+            lens (list(int)): the number of operating point values for each named channel in *keys*
+            level (int): enters with 0, backs up at the length of *keys* minus 1
+
+        Yields:
+            Appending to *bases*. Updates *sens_counter* in each call.
+
+        Returns:
+            None
+        """
+
+        self.sens_counter += 1
+
+        key = keys[level]
+        ary = self.sens_sets[key]
+        idx = self.sens_idx_set[key]
+        
+        if level + 1 == len(keys): # add basecases at the lowest level
+            for i in range(lens[level]):
+                step_vals[idx] = ary[i]
+                bases.append(step_vals.copy())
+        
+        else: # propagate this new value down to lower levels
+            step_vals[idx] = ary[indices[level]]
+
+        if level + 1 < len(keys):
+            level += 1
+            self.add_sensitivity_bases(bases, step_vals, keys, indices, lens, level)
+        else:
+            level -= 1
+        while level >= 0:
+            if indices[level]+1 >= lens[level]:
+                level -= 1
+            else:
+                indices[level] += 1
+                indices[level+1:] = 0
+                self.add_sensitivity_bases(bases, step_vals, keys, indices, lens, level)
+
+    def sensitivity_response(self,input,sens_matrix):
+
+        # Normalize the input channels
+        u_normalized = torch.unsqueeze(torch.unsqueeze(torch.tensor(np.float64(input)),0),0)  # Clone to avoid modifying original tensors
+        for j, key in enumerate(self.input_variables):
+            mean = float(self.scaling_factors[key]['mean'])
+            range_val = float(self.scaling_factors[key]['range'])
+            u_normalized[0, :, j] = self.normalize(u_normalized[0, :, j], mean, range_val)
+        
+        u_normalized = u_normalized.to(torch.float32)
+        # CREATE INPUT TENSOR
+
+        y1 = self.dynoModel.F1(u_normalized)
+        y2 = torch.unsqueeze(torch.sum(y1*sens_matrix,dim=2),0)
+        y3 = self.dynoModel.F2(y2)
+
+        # Convert model output to numpy array
+        y3_denormalized = y3[0,:,:]
+        
+        # DENORMALIZE VALUES
+        for i, key in enumerate(self.output_variables):
+            y3_denormalized[:,i] = self.denormalize(y3_denormalized[:,i],float(self.scaling_factors[key]['mean']),float(self.scaling_factors[key]['range']))
+            # i+=1
+
+        d_sens = y3_denormalized[:,self.sens_kod]
+        q_sens = y3_denormalized[:,self.sens_koq]
 
         return d_sens,q_sens
 
 
     def calculate_sensitivity(self):
-        sens_max = 0
+        sens_max = torch.tensor(0.0)
         
         G1 = self.dynoModel.G1
         
@@ -831,36 +1020,39 @@ class modelHW():
         alpha2 = G1.alpha2
         
         bc = G1.b_coeff
-        a1 = torch.abs(2*torch.tanh(alpha1))
-        a2 = a1 + (2-a1)*torch.sigmoid(alpha2)-1
-        ac = torch.stack([a1,a2])
-        acbar = torch.stack([ac,torch.ones((bc.shape))])
-        sens_matrix = torch.sum(bc)/torch.sum(acbar)
+        a1 = 2*torch.tanh(alpha1)
+        a1abs = torch.abs(a1)
+        a2 = a1 + (2-a1abs)*torch.sigmoid(alpha2)-1
+        ac = torch.cat((a1,a2), dim=2,)
+        acbar = torch.cat((ac,torch.ones ((G1.b_coeff.shape[0], G1.b_coeff.shape[1], 1))),dim=2)
 
-        for input in self.sensitivity_bases:
-            ud0 = input[self.kid]
-            uq0 = input[self.kiq]
+        sens_matrix = torch.divide(torch.sum(bc,dim=2),torch.sum(acbar,dim=2))
+        sens_matrix = sens_matrix.to(torch.float32)
+        
+        for input in self.sens_bases:
+            ud0 = input[self.sens_kid]
+            uq0 = input[self.sens_kiq]
             
-            ud1 = ud0 + self.delta
-            uq1 = uq0 + self.delta
+            ud1 = ud0 + self.sens_delta
+            uq1 = uq0 + self.sens_delta
             
             yd0,yq0 = self.sensitivity_response(input,sens_matrix)
 
-            input[self.kid] = ud1
-            input[self.kiq] = uq0
+            input[self.sens_kid] = ud1
+            input[self.sens_kiq] = uq0
 
             yd1,yq1 = self.sensitivity_response(input,sens_matrix)
 
-            input[self.kid] = ud0
-            input[self.kiq] = uq1
+            input[self.sens_kid] = ud0
+            input[self.sens_kiq] = uq1
             
             yd2,yq2 = self.sensitivity_response(input,sens_matrix)
 
-            input[self.kiq] = uq0
+            input[self.sens_kiq] = uq0
 
             y_error = torch.stack([torch.abs(yd1-yd0),torch.abs(yq1-yq0),torch.abs(yd2-yd0),torch.abs(yq2-yq0)])
 
-            sens = torch.max(y_error)/self.delta
+            sens = torch.max(y_error)/self.sens_delta
 
             sens_max = torch.max(sens_max,sens)
         
@@ -956,7 +1148,7 @@ class modelHW():
         
         time_values = np.linspace(0,self.dt*num_time_steps,num_time_steps)
         
-        y1,_,_ = self.dynoModel(u)
+        y1,_,_ = self.dynoModel(u,self.y0,self.u0)
         
         y1 = y1[0,:,:].detach().numpy().T
 
@@ -978,7 +1170,7 @@ class modelHW():
             u_in = u
             u_in[0,:,:] = torch.tensor(np.matmul(u[0,:,:].detach().numpy().T,P).T)
 
-            y2,_,_ = self.dynoModel(u_in)
+            y2,_,_ = self.dynoModel(u_in,self.y0,self.u0)
             y2 = np.matmul(y2[0,:,:].detach().numpy().T,P)
             u_temp = u
             j=0
@@ -987,7 +1179,7 @@ class modelHW():
                 j = j+1
 
             u_temp[0,:,:] = torch.tensor(np.matmul(u_temp[0,:,:].detach().numpy().T,P).T)
-            y3,_,_ = self.dynoModel(u_temp)
+            y3,_,_ = self.dynoModel(u_temp,self.y0,self.u0)
             y3 = np.matmul(y3[0,:,:].detach().numpy().T,P)
             #f_gradient = 2*(y1+y2-rho*y3 - (f*u_act.T))/ np.dot(u_act,u_act)
             f_gradient = 2 * (y1+y2-rho*y3 - (f*u_act)) / self.uy_dot(u_act,u_act)
@@ -998,7 +1190,7 @@ class modelHW():
                 u_temp[0,:,index] = torch.tensor(f_gradient[j,:])
                 j = j+1
 
-            y4,_,_ = self.dynoModel(u_temp)
+            y4,_,_ = self.dynoModel(u_temp,self.y0,self.u0)
             y4 = y4[0,:,:].detach().numpy()
             delta = self.find_delta_epsilon(u_act,f_gradient,y1,y4,rho)
 
@@ -1013,7 +1205,7 @@ class modelHW():
 
             epsilon_history.append(f)
 
-            y1,_,_ = self.dynoModel(u)
+            y1,_,_ = self.dynoModel(u,self.y0,self.u0)
             
             y1 = y1[0,:,:].detach().numpy().T
 
@@ -1038,7 +1230,7 @@ class modelHW():
         
         self.case_per_case_rmse = []
         out_size = len(self.output_variables)
-        
+        self.rmse_list = []
         self.total_rmse = np.zeros(out_size)
         self.total_mae = np.zeros(out_size)
 
@@ -1056,7 +1248,7 @@ class modelHW():
         for ub, y_true in self.total_dl: # batch loop
 
             # Simulate the model
-            y_hat,_,_ = self.dynoModel(ub)
+            y_hat,_,_ = self.dynoModel(ub,self.y0,self.u0)
             
             # Assign the true solution to y1
             y1 = y_true.detach().numpy()
@@ -1073,12 +1265,12 @@ class modelHW():
             nb = y_err.shape[0]
 
             mae = np.mean (y_err, axis=1) # nb x ncol
-            mse = np.mean (y_sqr, axis=1)
-
-            self.case_per_case_rmse.append(np.sqrt(mse))
+            mse = np.mean(y_sqr, axis=1)
+            rmse = np.sqrt(mse)
+            self.case_per_case_rmse.append(rmse)
             
             self.total_mae += np.sum(mae, axis=0)
-            self.total_rmse += np.sum(mse, axis=0)
+            self.total_rmse += np.sum(rmse, axis=0)
 
             if bByCase:
                 iend = icase + nb
@@ -1087,10 +1279,14 @@ class modelHW():
                 icase = iend
             i=i+1
 
-        self.total_rmse = np.sqrt(self.total_rmse / self.num_datasets)
+        self.total_rmse = self.total_rmse / self.num_datasets
         self.total_mae /= self.num_datasets
 
         if bByCase:
             self.case_rmse = np.sqrt(self.case_rmse)
         
         self.plot_errors()
+
+        print("Cumulative Sum of RMSE Errors: " + str(self.total_rmse))
+        print("Mean of RMSE Errors: " + str(np.mean(self.case_per_case_rmse)))
+        

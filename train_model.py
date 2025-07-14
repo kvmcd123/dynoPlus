@@ -3,9 +3,26 @@ import pickle
 import os
 
 # Model and Dataset Parameters
-dataset_class       = 'test'            # Class for model dataset
-dataset_name        = 'test'            # Folder name for model dataset
-model_name          = 'new_model_test'  # Model Name
+dataset_class       = 'test_full'            # Class for model dataset
+dataset_name        = 'test_full'            # Folder name for model dataset
+model_name          = 'model_full'  # Model Name
+
+# Sensitivity Parameters
+sens_limit = 0.01
+sens_weight = 0.2
+sens_delta = 0.01
+sens_input = ['Vd','Vq']
+sens_output = ['Isd','Isq']
+sens_sets = {
+    "Ud":   [0.3,0.9],
+    "Uq":   [-0.15,0.15],
+    "Vd":   [150,300],
+    "Vq":   [150,300],
+    # "Ra":   [6.0,59.0],
+    # "Rb":   [6.0,59.0],
+    # "Rc":   [6.0,59.0]
+    }
+
 
 # Class Initialization
 dynoPlus = modelHW()
@@ -20,16 +37,31 @@ dynoPlus.add_data_parameters(
 
 # Initialize the model parameters and create the model
 dynoPlus.add_model_parameters(
-    f1_output_dim   = 2,        # Input Dimensions of Linear Block
-    f2_input_dim    = 2,        # Output Dimensions of Linear Block
-    nb              = 2,        # Order of Linear Block 
-    na              = 2,        # Order of Linear Block
-    nk              = 0,        # Number of Time Delays
-    activation      ='tanh'     # Activation Function for Nonlinearities
+    f1_output_dim   = 2,            # Input Dimensions of Linear Block
+    f2_input_dim    = 2,            # Output Dimensions of Linear Block
+    f1_nodes        = 20,           # Number of Input Hidden Nodes
+    f2_nodes        = 20,           # Number of Output Hidden Nodes
+    nb              = 3,            # Order of Linear Block 
+    na              = 2,            # Order of Linear Block
+    nk              = 0,            # Number of Time Delays
+    activation      ='tanh',        # Activation Function for Nonlinearities
+    model_type      ="2ndOrderX"    # Type of Model Structure
     )
 
+dynoPlus.add_sensitivity_parameters(
+    limit       = sens_limit,
+    weight      = sens_weight,
+    delta       = sens_delta,
+    inputs      = sens_input,
+    outputs     = sens_output,
+    sets        = sens_sets
+)
+
 #Initialize the training parameters
-dynoPlus.initialize_training_parameters(num_epochs=2)
+dynoPlus.initialize_training_parameters(
+    num_epochs=200,
+    sensitivity_flag=True
+)
 
 # Train the model
 dynoPlus.train()
@@ -38,7 +70,7 @@ dynoPlus.train()
 dynoPlus.exportModel()
 
 # Evaluate the trained model
-dynoPlus.evaluate(67)
+dynoPlus.evaluate(8511, validation=False)
 
 # Calculate the total rmse errors of the model
 dynoPlus.calculate_total_rmse_errors()

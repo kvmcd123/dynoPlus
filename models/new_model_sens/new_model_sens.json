@@ -1,0 +1,533 @@
+{
+    "input_variables": [
+        "Ra",
+        "Rb",
+        "Rc",
+        "Ud",
+        "Uq",
+        "Vd",
+        "Vq"
+    ],
+    "output_variables": [
+        "Isd",
+        "Isq"
+    ],
+    "a_0_0": [
+        NaN,
+        NaN
+    ],
+    "b_0_0": [
+        NaN,
+        NaN,
+        NaN
+    ],
+    "a_0_1": [
+        NaN,
+        NaN
+    ],
+    "b_0_1": [
+        NaN,
+        NaN,
+        NaN
+    ],
+    "a_1_0": [
+        NaN,
+        NaN
+    ],
+    "b_1_0": [
+        NaN,
+        NaN,
+        NaN
+    ],
+    "a_1_1": [
+        NaN,
+        NaN
+    ],
+    "b_1_1": [
+        NaN,
+        NaN,
+        NaN
+    ],
+    "F1": {
+        "n_in": 7,
+        "n_hid": 20,
+        "n_out": 2,
+        "activation": "tanh",
+        "net.0.weight": [
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ]
+        ],
+        "net.0.bias": [
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN
+        ],
+        "net.2.weight": [
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ]
+        ],
+        "net.2.bias": [
+            NaN,
+            NaN
+        ]
+    },
+    "F2": {
+        "n_in": 2,
+        "n_hid": 20,
+        "n_out": 2,
+        "activation": "tanh",
+        "net.0.weight": [
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN
+            ]
+        ],
+        "net.0.bias": [
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN,
+            NaN
+        ],
+        "net.2.weight": [
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ]
+        ],
+        "net.2.bias": [
+            NaN,
+            NaN
+        ]
+    },
+    "normfacs": {
+        "Isd": {
+            "offset": 3.4480528831481934,
+            "scale": 43.27613830566406
+        },
+        "Isq": {
+            "offset": 2.390915870666504,
+            "scale": 28.00843620300293
+        },
+        "Ra": {
+            "offset": 49.49588394165039,
+            "scale": 51.999977111816406
+        },
+        "Rb": {
+            "offset": 54.747947692871094,
+            "scale": 51.999977111816406
+        },
+        "Rc": {
+            "offset": 49.49588394165039,
+            "scale": 51.999977111816406
+        },
+        "Ud": {
+            "offset": 0.4747753143310547,
+            "scale": 1.0
+        },
+        "Uq": {
+            "offset": 8.098133275069586e-11,
+            "scale": 0.4000000059604645
+        },
+        "Vd": {
+            "offset": 143.28477478027344,
+            "scale": 329.87640380859375
+        },
+        "Vq": {
+            "offset": -2.0006730556488037,
+            "scale": 158.86859130859375
+        }
+    },
+    "dataset_class": "test",
+    "dataset_name": "test",
+    "model_name": "new_model_sens",
+    "optimizer_name": "Adam",
+    "lr": 0.001,
+    "eps": 0,
+    "weight_decay": 0,
+    "num_iter": 300,
+    "batch_size": 128,
+    "n_validation_pct": 0.2,
+    "na": 2,
+    "nb": 3,
+    "nk": 0,
+    "activation": "tanh",
+    "f1_nodes": 20,
+    "f2_nodes": 20,
+    "f1_output_dim": 2,
+    "f2_input_dim": 2,
+    "f2_output_dim": 2,
+    "criterion": "MSE",
+    "msg_freq": 100,
+    "dt": 0.01,
+    "dc_gain": false,
+    "sensitivity": true
+}
