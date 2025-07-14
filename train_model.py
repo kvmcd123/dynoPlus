@@ -3,7 +3,7 @@ import pickle
 import os
 
 # Model and Dataset Parameters
-dataset_class       = 'test_full'            # Class for model dataset
+dataset_class       = 'inverter_data'            # Class for model dataset
 dataset_name        = 'test_full'            # Folder name for model dataset
 model_name          = 'model_full'  # Model Name
 
